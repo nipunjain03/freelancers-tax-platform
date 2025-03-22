@@ -1,0 +1,132 @@
+const mongoose = require("mongoose");
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
+
+const invoiceSchema = new mongoose.Schema({
+    fromCompany: String,
+    fromAddress: String,
+    fromEmail: String,
+    fromPhone: String,
+    billedTo: String,
+    billToName: String,
+    billToAddress: String,
+    billToEmail: String,
+    billToPhone: String,
+    items: [
+        {
+            description: String,
+            value: Number,
+            qty: Number,
+            taxRate: Number,
+        },
+    ],
+});
+
+// Clean value to ensure no special characters appear
+const cleanNumber = (value) => (typeof value === "number" ? value.toFixed(2) : parseFloat(value).toFixed(2));
+
+invoiceSchema.methods.generateInvoicePDF = function () {
+    return new Promise((resolve, reject) => {
+        try {
+            const invoicesDir = process.env.INVOICE_DIR || "invoices";
+            if (!fs.existsSync(invoicesDir)) {
+                fs.mkdirSync(invoicesDir, { recursive: true });
+            }
+
+            const timestamp = Date.now();
+            const fileName = `${this.billToName.replace(/\s+/g, "_")}_${timestamp}.pdf`;
+            const filePath = path.join(invoicesDir, fileName);
+
+            const doc = new PDFDocument({ size: "A4", margin: 50 });
+            const writeStream = fs.createWriteStream(filePath);
+            doc.pipe(writeStream);
+
+            // Header Background
+            doc.rect(0, 0, 600, 80).fill("#f4e1d2"); // Light brown
+
+            // Company Logo - Top Left Corner
+            if (process.env.CompanyIcon && fs.existsSync(process.env.CompanyIcon)) {
+                doc.image(process.env.CompanyIcon, 0, 0, { width: 80});
+            }
+
+            // Invoice Title Centered
+            doc.fillColor("#000").fontSize(24).text("INVOICE", 0, 30, { align: "center", width: 600 });
+
+            // Separator Line Below Header
+            doc.moveTo(50, 85).lineTo(550, 85).stroke();
+
+            // From and Billed To Box
+            doc.fillColor("#000").fontSize(12);
+            doc.rect(50, 100, 220, 100).stroke(); // From box
+            doc.rect(320, 100, 220, 100).stroke(); // Billed to box
+
+            // From Section
+            doc.font("Helvetica-Bold").text("From:", 55, 105);
+            doc.font("Helvetica").text(this.fromCompany, 55, 120);
+            doc.text(this.fromAddress, 55, 135);
+            
+            // Conditionally add email and phone
+            if (this.fromEmail) doc.text(`Email: ${this.fromEmail}`, 55, 150);
+            if (this.fromPhone) doc.text(`Contact: ${this.fromPhone}`, 55, 165);
+
+            // Billed To Section
+            doc.font("Helvetica-Bold").text("Billed To:", 325, 105);
+            doc.font("Helvetica").text(this.billToName, 325, 120);
+            doc.text(this.billToAddress, 325, 135);
+            
+            // Conditionally add email and phone
+            if (this.billToEmail) doc.text(`Email: ${this.billToEmail}`, 325, 150);
+            if (this.billToPhone) doc.text(`Contact: ${this.billToPhone}`, 325, 165);
+
+            // Table Header
+            const tableTop = 220;
+            doc.rect(50, tableTop, 500, 25).fill("#f4e1d2").stroke(); // Light brown
+            doc.fillColor("#000").fontSize(12);
+            doc.text("Description", 55, tableTop + 8);
+            doc.text("Value", 270, tableTop + 8);
+            doc.text("Qty", 350, tableTop + 8);
+            doc.text("Tax Rate%", 400, tableTop + 8);
+            doc.text("Total", 480, tableTop + 8);
+
+            // Table Items
+            let y = tableTop + 30;
+            let totalAmount = 0;
+
+            this.items.forEach((item) => {
+                const itemTotal = item.value * item.qty * (1 + item.taxRate / 100);
+                totalAmount += itemTotal;
+
+                doc.rect(50, y, 500, 25).stroke(); // Row border
+                doc.text(item.description, 55, y + 8);
+                doc.text(`${cleanNumber(item.value)}`, 270, y + 8);
+                doc.text(item.qty.toString(), 350, y + 8);
+                doc.text(`${item.taxRate}%`, 400, y + 8);
+                doc.text(`${cleanNumber(itemTotal)}`, 480, y + 8);
+
+                y += 30;
+            });
+
+            // Total Row
+            doc.rect(50, y, 500, 25).fill("#f4e1d2").stroke();
+            doc.fillColor("#000").fontSize(12).text("Total", 400, y + 8);
+            doc.text(`${cleanNumber(totalAmount)}`, 480, y + 8);
+
+            // Footer Section
+            const footerY = 750;
+            doc.fillColor("red").fontSize(10).text("Confidential", 50, footerY);
+            doc.fillColor("#000").text(`Page 1 of 1`, 270, footerY, { align: "center", width: 60 });
+
+            doc.end();
+            writeStream.on("finish", () => resolve(filePath));
+            writeStream.on("error", (error) => reject(error));
+        } catch (error) {
+            reject(error);
+        }
+    });
+};
+
+// Export Model
+const Invoice = mongoose.model("Invoice", invoiceSchema);
+module.exports = Invoice;

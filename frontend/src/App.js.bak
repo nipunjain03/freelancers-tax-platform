@@ -1,0 +1,23 @@
+import React from "react";
+import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
+import InvoiceList from "./components/InvoiceList";
+import InvoiceDetails from "./components/InvoiceDetails";
+import CreateInvoice from "./components/CreateInvoice";
+
+const App = () => (
+  <Router>
+    <nav>
+      <ul>
+        <li><Link to="/invoices">Invoices</Link></li>
+        <li><Link to="/invoices/create">Create Invoice</Link></li>
+      </ul>
+    </nav>
+    <Routes>
+      <Route path="/invoices" element={<InvoiceList />} />
+      <Route path="/invoice/:id" element={<InvoiceDetails />} />
+      <Route path="/invoices/create" element={<CreateInvoice />} />
+    </Routes>
+  </Router>
+);
+
+export default App;

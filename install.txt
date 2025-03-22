@@ -1,0 +1,22 @@
+Windows: Download and install MongoDB Community Edition from  https://www.mongodb.com/try/download/community
+mkdir freelancers-tax-platform 
+mkdir backend && cd freelancers-tax-platform/backend
+npm init -y
+npm install express mongoose cors dotenv
+npm install nodemon --save-dev
+
+
+
+
+// Strat server
+npx nodemon server.js
+
+
+npx create-react-app frontend
+cd fronted
+npm install axios react-router-dom react-modal
+
+
+
+
+
